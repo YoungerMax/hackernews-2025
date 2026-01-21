@@ -2,15 +2,16 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no" />
 <title>HackerNews Clustered, 2025 Edition</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#0a0a0a;color:#e0e0e0;overflow:hidden}
-  #container{display:flex;height:100vh}
-  #sidebar{width:320px;background:#1a1a1a;border-right:1px solid #333;overflow-y:auto;padding:20px;flex-shrink:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#0a0a0a;color:#e0e0e0;overflow:hidden;touch-action:none}
+  #container{display:flex;height:100vh;height:100dvh}
+  #sidebar{width:320px;background:#1a1a1a;border-right:1px solid #333;overflow-y:auto;padding:20px;flex-shrink:0;transition:transform .3s ease}
+  #sidebar.hidden{transform:translateX(-100%)}
   #canvas-container{flex:1;position:relative;display:flex;flex-direction:column}
-  canvas{display:block;cursor:grab;flex:1;background:#070707}
+  canvas{display:block;cursor:grab;flex:1;background:#070707;touch-action:none}
   canvas:active{cursor:grabbing}
   h1{font-size:24px;margin-bottom:10px;color:#ff6600}
   .stats{font-size:13px;color:#888;margin-bottom:20px;padding-bottom:15px;border-bottom:1px solid #333}
@@ -20,15 +21,38 @@
   .cluster-item.active{border-color:#ff6600;background:#2a2a2a}
   .cluster-name{font-weight:600;font-size:14px;margin-bottom:4px}
   .cluster-count{font-size:12px;color:#888}
-  .loading{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:18px;color:#888}
-  .controls{position:absolute;top:20px;right:20px;background:rgba(26,26,26,0.95);padding:12px;border-radius:8px;border:1px solid #333}
+  .loading{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:18px;color:#888;text-align:center;padding:20px}
+  .controls{position:absolute;top:20px;right:20px;background:rgba(26,26,26,0.95);padding:12px;border-radius:8px;border:1px solid #333;z-index:100}
   .controls button{display:block;width:100%;padding:10px;margin-bottom:8px;background:#252525;color:#e0e0e0;border:1px solid #444;border-radius:4px;cursor:pointer;font-size:13px}
   .controls button:hover{background:#2a2a2a}
+  .controls button:last-child{margin-bottom:0}
   .debug-info{position:absolute;bottom:20px;right:20px;background:rgba(26,26,26,0.95);padding:10px 15px;border-radius:8px;border:1px solid #333;font-size:11px;color:#888}
   #tooltip{position:absolute;background:rgba(0,0,0,0.95);color:#fff;padding:10px 14px;border-radius:4px;font-size:13px;pointer-events:auto;display:none;max-width:420px;border:1px solid #444;z-index:1000;line-height:1.4}
   #tooltip a{color:#ff6600;text-decoration:none;display:block;margin-top:6px;font-size:11px}
   #tooltip.pinned{border-color:#ff6600}
   .color-swatch{display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:6px;vertical-align:middle}
+  #sidebar-toggle{position:absolute;top:20px;left:20px;background:rgba(26,26,26,0.95);color:#e0e0e0;border:1px solid #444;border-radius:4px;padding:10px 14px;cursor:pointer;font-size:14px;z-index:101;display:none}
+  #sidebar-toggle:hover{background:#2a2a2a}
+  .progress-bar{width:100%;height:4px;background:#252525;border-radius:2px;margin-top:10px;overflow:hidden}
+  .progress-fill{height:100%;background:#ff6600;transition:width .3s ease}
+
+  @media (max-width: 768px) {
+    #sidebar{position:absolute;top:0;left:0;height:100%;width:85%;max-width:320px;z-index:200;box-shadow:2px 0 10px rgba(0,0,0,0.5)}
+    #sidebar.hidden{transform:translateX(-100%)}
+    #sidebar-toggle{display:block; z-index: 1000;}
+    .controls{top:70px;right:10px;padding:8px}
+    .controls button{padding:8px;font-size:12px;margin-bottom:6px}
+    .debug-info{bottom:10px;right:10px;font-size:10px;padding:8px 12px}
+    #tooltip{max-width:280px;font-size:12px}
+    h1{font-size:20px}
+  }
+
+  @media (max-width: 480px) {
+    #sidebar{width:90%;max-width:280px;padding:15px}
+    .controls{padding:6px}
+    .controls button{padding:6px;font-size:11px}
+    #tooltip{max-width:240px;font-size:11px;padding:8px 10px}
+  }
 </style>
 </head>
 <body>
@@ -36,16 +60,23 @@
   <div id="sidebar">
     <h1>HN Clustered 2025</h1>
     <div class="stats" id="stats">Loading...</div>
+    
     <div class="cluster-list" id="cluster-list"></div>
   </div>
 
+  <button id="sidebar-toggle">☰ Menu</button>
+
   <div id="canvas-container">
-    <div class="loading" id="loading">Loading data...</div>
+    <div class="loading" id="loading">
+      <div id="loading-progress" style="display:none; pointer-events: none;">
+        <div style="font-size:12px;color:#888;margin-bottom:4px">Loading chunks: <span id="chunk-progress">0/0</span></div>
+        <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+      </div>
+    </div>
     <canvas id="canvas"></canvas>
     <div class="controls">
       <button id="resetBtn">Reset View</button>
       <button id="showAllBtn">Show All</button>
-      <button id="forceBtn">Force Re-render</button>
     </div>
     <div class="debug-info" id="debug-info"></div>
   </div>
@@ -54,24 +85,20 @@
 <div id="tooltip"></div>
 
 <script>
-/* ========== CONFIG ========== */
 const DPR = Math.max(1, window.devicePixelRatio || 1);
-const MAX_RASTER_DIM = 4096;          // max pixels (width/height) to avoid OOM
+const MAX_RASTER_DIM = 4096;
 const MIN_RASTER_DIM = 256;
-const RASTER_PAD = 2.0;               // raster covers viewport * RASTER_PAD (large to avoid re-renders)
-const ZOOM_RENDER_THRESHOLD = 1.25;   // re-render if current ppwu > raster.ppwu * threshold
-const ZOOM_FACTOR_THRESHOLD = 1.35;   // re-render if zoom changes relative to raster.createdAtZoom
-const RASTER_DEBOUNCE_MS = 120;       // debounce raster creation
-const VISIBLE_POINTS_CAP = 350000;    // safety cap for drawing
-const HOVER_SEARCH_CAP = 100000;      // cap how many points we iterate for hover (safety)
-const HOVER_THRESHOLD_PX = 10;        // pixels for nearest hover
+const RASTER_PAD = 2.0;
+const ZOOM_RENDER_THRESHOLD = 1.25;
+const ZOOM_FACTOR_THRESHOLD = 1.35;
+const RASTER_DEBOUNCE_MS = 120;
+const VISIBLE_POINTS_CAP = 350000;
+const HOVER_SEARCH_CAP = 100000;
+const HOVER_THRESHOLD_PX = 10;
+const DOT_FRACTION = 0.22;
+const DOT_MIN_PX = 1;
+const DOT_MAX_PX = 14;
 
-// Dot sizing constants
-const DOT_FRACTION = 0.22;   // fraction of avg pixel spacing used for dot size (tweakable)
-const DOT_MIN_PX = 1;        // minimum visible dot radius/pixel size
-const DOT_MAX_PX = 14;       // maximum dot radius/pixel size
-
-/* ========== DOM + contexts ========== */
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d', { alpha: false });
 const tooltip = document.getElementById('tooltip');
@@ -79,37 +106,48 @@ const loadingEl = document.getElementById('loading');
 const debugEl = document.getElementById('debug-info');
 const statsEl = document.getElementById('stats');
 const clusterListEl = document.getElementById('cluster-list');
-document.getElementById('resetBtn').addEventListener('click', resetView);
-document.getElementById('showAllBtn').addEventListener('click', () => { selectedCluster = null; rebuildRaster(); });
-document.getElementById('forceBtn').addEventListener('click', () => { scheduleRasterRender(10); });
+const sidebar = document.getElementById('sidebar');
+const sidebarToggle = document.getElementById('sidebar-toggle');
+const loadingProgress = document.getElementById('loading-progress');
+const chunkProgress = document.getElementById('chunk-progress');
+const progressFill = document.getElementById('progress-fill');
 
-/* ========== STATE ========== */
+document.getElementById('resetBtn').addEventListener('click', resetView);
+document.getElementById('showAllBtn').addEventListener('click', () => { selectedCluster = null; rebuildRaster(); closeSidebarOnMobile(); });
+
+sidebarToggle.addEventListener('click', () => {
+  sidebar.classList.toggle('hidden');
+});
+
+function closeSidebarOnMobile() {
+  if (window.innerWidth <= 768) {
+    sidebar.classList.add('hidden');
+  }
+}
+
 let metadata = null;
-let loadedChunks = new Map(); // file -> points[]
-let visiblePoints = [];       // flattened points inside current worldRect used for hover and raster draw (filtered)
-let clusterColor = {};       // clusterId -> color string
+let loadedChunks = new Map();
+let allPoints = [];
+let visiblePoints = [];
+let clusterColor = {};
 let selectedCluster = null;
 
-let camera = { x: 0, y: 0, zoom: 1 };
+let camera = { x: 8.682248592376709, y: 4.607681751251221, zoom: 36.65814995608183 };
 let isDragging = false, dragStart = { x:0, y:0 };
+let touchStartDist = 0, touchStartZoom = 1;
 let mouse = { clientX:0, clientY:0, screenX:0, screenY:0 };
 let hoveredPoint = null;
-let selectedPoint = null; // clicked persistent highlight
+let selectedPoint = null;
 let tooltipPinned = false;
 
-/* Raster object:
-   { canvas, worldRect: {x_min,x_max,y_min,y_max}, pixelsPerWorldUnit, createdAtZoom, computedDotSizePx, avgPixelSpacing }
-*/
 let raster = null;
 let rasterRenderTimer = null;
-
-/* Render scheduling */
 let renderScheduled = false;
+
 function scheduleRender() {
   if (!renderScheduled) { renderScheduled = true; requestAnimationFrame(() => { renderScheduled = false; render(); }); }
 }
 
-/* ========== UTIL: transforms ========== */
 function resizeCanvas() {
   const container = document.getElementById('canvas-container');
   canvas.width = Math.round(container.clientWidth);
@@ -135,10 +173,9 @@ function getViewportBounds() {
   const a = screenToWorld(0,0), b = screenToWorld(canvas.width, canvas.height);
   return { x_min: Math.min(a.x,b.x), x_max: Math.max(a.x,b.x), y_min: Math.min(a.y,b.y), y_max: Math.max(a.y,b.y) };
 }
-function rectContains(a,b){ return a.x_min<=b.x_min && a.x_max>=b.x_max && a.y_min<=b.y_min && a.y_max>=b.y_max; }
-function rectIntersects(a,b){ return !(a.x_max < b.x_min || a.x_min > b.x_max || a.y_max < b.y_min || a.y_min > b.y_max); }
 
-/* ========== LOAD METADATA & SETUP ========== */
+function rectContains(a,b){ return a.x_min<=b.x_min && a.x_max>=b.x_max && a.y_min<=b.y_min && a.y_max>=b.y_max; }
+
 async function loadMetadata() {
   try {
     const r = await fetch('metadata.json');
@@ -146,97 +183,101 @@ async function loadMetadata() {
     statsEl.innerHTML = `<div><strong>${metadata.total_points.toLocaleString()}</strong> posts</div>
                          <div><strong>${metadata.num_clusters}</strong> clusters</div>`;
 
-    // precompute cluster colors
     const COLORS = [
       '#e6194B','#3cb44b','#ffe119','#4363d8','#f58231','#911eb4','#42d4f4','#f032e6',
       '#bfef45','#fabed4','#469990','#dcbeff','#9A6324','#fffac8','#800000','#aaffc3',
       '#808000','#ffd8b1','#000075','#a9a9a9'
     ];
+    
     metadata.clusters.forEach((c, idx) => {
       clusterColor[c.id] = COLORS[idx % COLORS.length];
       const div = document.createElement('div');
-      div.className = 'cluster-item'; div.dataset.clusterId = c.id;
+      div.className = 'cluster-item'; 
+      div.dataset.clusterId = c.id;
       div.innerHTML = `<div class="cluster-name"><span class="color-swatch" style="background:${clusterColor[c.id]}"></span>${c.name}</div>
                         <div class="cluster-count">${c.count.toLocaleString()} posts</div>`;
-      div.addEventListener('click', () => { selectedCluster = (selectedCluster===c.id? null : c.id); document.querySelectorAll('.cluster-item').forEach(it=>it.classList.toggle('active', parseInt(it.dataset.clusterId)===selectedCluster)); rebuildRaster(); });
+      div.addEventListener('click', () => { 
+        selectedCluster = (selectedCluster===c.id? null : c.id); 
+        document.querySelectorAll('.cluster-item').forEach(it=>it.classList.toggle('active', parseInt(it.dataset.clusterId)===selectedCluster)); 
+        rebuildRaster(); 
+        closeSidebarOnMobile();
+      });
       clusterListEl.appendChild(div);
     });
 
+    // loadingEl.textContent = 'Loading all chunks...';
+    loadingProgress.style.display = 'block';
+    await loadAllChunks();
     loadingEl.style.display = 'none';
-    fitToView();
-    await loadVisibleChunks(); // schedule raster creation after initial chunk load
+    loadingProgress.style.display = 'none';
   } catch (err) {
     loadingEl.textContent = 'Error loading metadata: ' + err.message;
     console.error(err);
   }
 }
 
-/* ========== CHUNK LOADING & VISIBLE POINTS ========== */
-async function loadVisibleChunks() {
+async function loadAllChunks() {
   if (!metadata) return;
-  const view = getViewportBounds();
-  const toLoad = [];
+  
+  const totalChunks = metadata.chunks.length;
+  let loadedCount = 0;
+  
+  chunkProgress.textContent = `${loadedCount}/${totalChunks}`;
+  progressFill.style.width = '0%';
 
-  // expand search area a bit to pre-load neighboring chunks
-  const padX = (view.x_max - view.x_min) * 0.5;
-  const padY = (view.y_max - view.y_min) * 0.5;
-  const searchRect = { x_min: view.x_min - padX, x_max: view.x_max + padX, y_min: view.y_min - padY, y_max: view.y_max + padY };
-
-  for (const chunk of metadata.chunks) {
-    if (rectIntersects(chunk.bounds, searchRect) && !loadedChunks.has(chunk.file)) toLoad.push(chunk.file);
-  }
-
-  // limited concurrency fetch
   const CONCURRENCY = 6;
   let idx = 0;
+  
   async function workerFetch() {
-    while (idx < toLoad.length) {
+    while (idx < metadata.chunks.length) {
       const i = idx++;
-      const file = toLoad[i];
+      const chunk = metadata.chunks[i];
       try {
-        const r = await fetch(file);
+        const r = await fetch(chunk.file);
         const data = await r.json();
-        loadedChunks.set(file, data);
+        loadedChunks.set(chunk.file, data);
+        allPoints.push(...data);
+        
+        loadedCount++;
+        chunkProgress.textContent = `${loadedCount}/${totalChunks}`;
+        progressFill.style.width = `${(loadedCount / totalChunks) * 100}%`;
+        
+        rebuildVisiblePoints();
+        if (!raster) scheduleRasterRender(60);
+        scheduleRender();
+        updateDebugInfo();
       } catch (err) {
-        console.error('load chunk failed', file, err);
+        console.error('load chunk failed', chunk.file, err);
       }
     }
   }
-  const workers = Array.from({length: Math.min(CONCURRENCY, toLoad.length)}, workerFetch);
+  
+  const workers = Array.from({length: Math.min(CONCURRENCY, metadata.chunks.length)}, workerFetch);
   await Promise.all(workers);
-
-  updateDebugInfo();
+  
   rebuildVisiblePoints();
-  if (!raster) scheduleRasterRender(60); else scheduleRasterRender(RASTER_DEBOUNCE_MS);
-  scheduleRender();
+  scheduleRasterRender(40);
 }
 
-/* Flatten visible points from loadedChunks */
 function rebuildVisiblePoints() {
   visiblePoints = [];
   const worldRect = raster ? raster.worldRect : getViewportBounds();
-  // If raster exists, use its worldRect (we draw from raster area). Otherwise use current viewport padded.
   const padW = (worldRect.x_max - worldRect.x_min) * 0.5;
   const padH = (worldRect.y_max - worldRect.y_min) * 0.5;
   const filterRect = { x_min: worldRect.x_min - padW, x_max: worldRect.x_max + padW, y_min: worldRect.y_min - padH, y_max: worldRect.y_max + padH };
 
-  for (const pts of loadedChunks.values()) {
-    for (const p of pts) {
-      if (selectedCluster !== null && p.cluster !== selectedCluster) continue;
-      if (p.x < filterRect.x_min || p.x > filterRect.x_max || p.y < filterRect.y_min || p.y > filterRect.y_max) continue;
-      visiblePoints.push(p);
-      if (visiblePoints.length >= VISIBLE_POINTS_CAP) break;
-    }
+  for (const p of allPoints) {
+    if (selectedCluster !== null && p.cluster !== selectedCluster) continue;
+    if (p.x < filterRect.x_min || p.x > filterRect.x_max || p.y < filterRect.y_min || p.y > filterRect.y_max) continue;
+    visiblePoints.push(p);
     if (visiblePoints.length >= VISIBLE_POINTS_CAP) break;
   }
 }
 
-/* ========== RASTER CREATION & ADAPTIVE DOT SIZE ========== */
 function scheduleRasterRender(ms = RASTER_DEBOUNCE_MS) {
   if (rasterRenderTimer) clearTimeout(rasterRenderTimer);
   rasterRenderTimer = setTimeout(() => { rasterRenderTimer = null; createRasterForCurrentView(); }, ms);
 }
-function forceRaster() { scheduleRasterRender(10); }
 
 function needsRasterRecreate() {
   if (!raster) return true;
@@ -251,27 +292,22 @@ function needsRasterRecreate() {
 
 function rebuildRaster() {
   raster = null;
-  visiblePoints = [];
+  rebuildVisiblePoints();
   scheduleRasterRender(40);
-  loadVisibleChunks();
 }
 
-/* Create raster using visiblePoints and compute adaptive dot size */
 function createRasterForCurrentView() {
-  if (!metadata) return;
-  if (loadedChunks.size === 0) { scheduleRasterRender(150); return; } // wait for chunks
+  if (!metadata || allPoints.length === 0) { scheduleRasterRender(150); return; }
 
   const view = getViewportBounds();
   const w = view.x_max - view.x_min, h = view.y_max - view.y_min;
   const padW = w * ((RASTER_PAD - 1) / 2), padH = h * ((RASTER_PAD - 1) / 2);
   const worldRect = { x_min: view.x_min - padW, x_max: view.x_max + padW, y_min: view.y_min - padH, y_max: view.y_max + padH };
 
-  // pixels per world unit at creation
   let ppwu = camera.zoom * DPR;
   let rasterW = Math.max(2, Math.round((worldRect.x_max - worldRect.x_min) * ppwu));
   let rasterH = Math.max(2, Math.round((worldRect.y_max - worldRect.y_min) * ppwu));
 
-  // clamp
   if (rasterW > MAX_RASTER_DIM || rasterH > MAX_RASTER_DIM) {
     const scaleClamp = Math.min(MAX_RASTER_DIM / rasterW, MAX_RASTER_DIM / rasterH);
     ppwu = ppwu * scaleClamp;
@@ -279,50 +315,31 @@ function createRasterForCurrentView() {
     rasterH = Math.max(MIN_RASTER_DIM, Math.round((worldRect.y_max - worldRect.y_min) * ppwu));
   }
 
-  // gather visiblePoints (strictly within worldRect) - replace visiblePoints with this set
   visiblePoints = [];
-  for (const pts of loadedChunks.values()) {
-    for (const p of pts) {
-      if (selectedCluster !== null && p.cluster !== selectedCluster) continue;
-      if (p.x < worldRect.x_min || p.x > worldRect.x_max || p.y < worldRect.y_min || p.y > worldRect.y_max) continue;
-      visiblePoints.push(p);
-      if (visiblePoints.length >= VISIBLE_POINTS_CAP) break;
-    }
+  for (const p of allPoints) {
+    if (selectedCluster !== null && p.cluster !== selectedCluster) continue;
+    if (p.x < worldRect.x_min || p.x > worldRect.x_max || p.y < worldRect.y_min || p.y > worldRect.y_max) continue;
+    visiblePoints.push(p);
     if (visiblePoints.length >= VISIBLE_POINTS_CAP) break;
   }
 
   const n = visiblePoints.length || 1;
   const worldArea = (worldRect.x_max - worldRect.x_min) * (worldRect.y_max - worldRect.y_min);
-
-  // Cheap expected spacing heuristic:
-  // average distance between points (world units) ≈ sqrt(area / n)
   const avgSpacingWorld = Math.sqrt(worldArea / n);
   const avgPixelSpacing = avgSpacingWorld * ppwu;
-
-  // Adaptive dot size (in pixels). Use a fraction of avg spacing so dots are visible but don't completely overlap.
-  // Tune DOT_FRACTION / DOT_MIN_PX / DOT_MAX_PX above.
   let dotSizePx = Math.round(avgPixelSpacing * DOT_FRACTION);
   dotSizePx = Math.max(DOT_MIN_PX, Math.min(DOT_MAX_PX, dotSizePx));
 
-  // If the dataset is extremely sparse such that avgPixelSpacing < 1, ensure a minimal visible size
-  if (dotSizePx < DOT_MIN_PX) dotSizePx = DOT_MIN_PX;
-
-  // create offscreen canvas
   const off = document.createElement('canvas');
   off.width = rasterW;
   off.height = rasterH;
   const oc = off.getContext('2d', { alpha: false });
 
-  // background
   oc.fillStyle = '#070707';
   oc.fillRect(0,0,off.width,off.height);
 
-  // draw points quickly using fillRect squares sized to dotSizePx
-  // compute sample skipping if too many points
   const sampleFactor = visiblePoints.length > VISIBLE_POINTS_CAP ? (visiblePoints.length / VISIBLE_POINTS_CAP) : 1;
   const step = Math.max(1, Math.ceil(sampleFactor));
-
-  // place squares centered: we compute halfsize
   const half = Math.max(1, Math.floor(dotSizePx / 2));
 
   for (let i=0; i<visiblePoints.length; i+=step) {
@@ -330,7 +347,6 @@ function createRasterForCurrentView() {
     const px = Math.round((p.x - worldRect.x_min) * ppwu);
     const py = Math.round((p.y - worldRect.y_min) * ppwu);
     oc.fillStyle = clusterColor[p.cluster] || '#ffffff';
-    // draw centered rectangle
     oc.fillRect(px - half, py - half, dotSizePx, dotSizePx);
   }
 
@@ -343,18 +359,14 @@ function createRasterForCurrentView() {
     avgPixelSpacing
   };
 
-  // render now
   scheduleRender();
   updateDebugInfo();
 }
 
-/* ========== RENDER: draw raster + overlays ========== */
 function render() {
-  // clear
   ctx.fillStyle = '#070707';
   ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  // schedule raster if necessary (but do not check constantly elsewhere)
   if (needsRasterRecreate()) {
     scheduleRasterRender(60);
   }
@@ -374,19 +386,16 @@ function render() {
     drawPointsDirectly(100000);
   }
 
-  // hovered soft highlight
   if (hoveredPoint) {
     const s = worldToScreen(hoveredPoint.x, hoveredPoint.y);
     ctx.strokeStyle = 'rgba(255,255,255,0.9)';
     ctx.lineWidth = Math.max(1, 2);
-    // make highlight scale with computed dot size (if available) or with camera zoom
     const base = raster ? Math.max(6, Math.round(raster.computedDotSizePx * 1.8)) : Math.max(6, 6 * Math.min(1, camera.zoom));
     ctx.beginPath();
     ctx.arc(s.x, s.y, base, 0, Math.PI*2);
     ctx.stroke();
   }
 
-  // persistent selected highlight
   if (selectedPoint) {
     const s = worldToScreen(selectedPoint.x, selectedPoint.y);
     ctx.strokeStyle = '#ffcc00';
@@ -402,9 +411,7 @@ function render() {
   }
 }
 
-/* cheap direct draw fallback (limits number of points drawn) */
 function drawPointsDirectly(maxPoints=50000) {
-  // compute approximate dot size using viewport and visiblePoints
   const view = getViewportBounds();
   const worldW = view.x_max - view.x_min, worldH = view.y_max - view.y_min;
   const n = Math.max(1, visiblePoints.length);
@@ -415,47 +422,62 @@ function drawPointsDirectly(maxPoints=50000) {
   const half = Math.max(1, Math.floor(dotSizePx / 2));
 
   let count = 0;
-  for (const pts of loadedChunks.values()) {
-    for (const p of pts) {
-      if (selectedCluster !== null && p.cluster !== selectedCluster) continue;
-      const s = worldToScreen(p.x,p.y);
-      if (s.x < -8 || s.x > canvas.width+8 || s.y < -8 || s.y > canvas.height+8) continue;
-      ctx.fillStyle = clusterColor[p.cluster] || '#fff';
-      // draw square or small circle
-      ctx.fillRect(s.x - half, s.y - half, dotSizePx, dotSizePx);
-      if (++count >= maxPoints) return;
-    }
+  for (const p of visiblePoints) {
+    if (selectedCluster !== null && p.cluster !== selectedCluster) continue;
+    const s = worldToScreen(p.x,p.y);
+    if (s.x < -8 || s.x > canvas.width+8 || s.y < -8 || s.y > canvas.height+8) continue;
+    ctx.fillStyle = clusterColor[p.cluster] || '#fff';
+    ctx.fillRect(s.x - half, s.y - half, dotSizePx, dotSizePx);
+    if (++count >= maxPoints) return;
   }
 }
 
-/* ========== INTERACTIONS: pan, zoom, hover, click ========== */
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
 canvas.addEventListener('mousedown', (e) => {
-  isDragging = true; dragStart = { x: e.clientX, y: e.clientY };
+  isDragging = true; 
+  dragStart = { x: e.clientX, y: e.clientY };
 });
 
 canvas.addEventListener('mousemove', (e) => {
-  mouse.clientX = e.clientX; mouse.clientY = e.clientY;
+  mouse.clientX = e.clientX; 
+  mouse.clientY = e.clientY;
   const rect = canvas.getBoundingClientRect();
-  mouse.screenX = e.clientX - rect.left; mouse.screenY = e.clientY - rect.top;
+  mouse.screenX = e.clientX - rect.left; 
+  mouse.screenY = e.clientY - rect.top;
 
   if (isDragging) {
     const dx = e.clientX - dragStart.x, dy = e.clientY - dragStart.y;
-    camera.x -= dx / camera.zoom; camera.y -= dy / camera.zoom;
+    camera.x -= dx / camera.zoom; 
+    camera.y -= dy / camera.zoom;
     dragStart = { x: e.clientX, y: e.clientY };
-    scheduleLoadAfterPan();
     scheduleRender();
   } else {
     scheduleHoverCheck();
   }
 });
 
-canvas.addEventListener('mouseup', (e) => { isDragging = false; });
-canvas.addEventListener('mouseleave', () => { isDragging = false; if (!tooltipPinned) { tooltip.style.display='none'; hoveredPoint=null; scheduleRender(); } });
+canvas.addEventListener('mouseup', () => { isDragging = false; });
+canvas.addEventListener('mouseleave', () => { 
+  isDragging = false; 
+  if (!tooltipPinned) { 
+    tooltip.style.display='none'; 
+    hoveredPoint=null; 
+    scheduleRender(); 
+  } 
+});
 
 canvas.addEventListener('click', (e) => {
+  // click check
+  mouse.clientX = e.clientX; 
+  mouse.clientY = e.clientY;
+  const rect = canvas.getBoundingClientRect();
+  mouse.screenX = e.clientX - rect.left; 
+  mouse.screenY = e.clientY - rect.top;
+  doHoverCheck();
+
+  // thing
   if (isDragging) return;
   if (hoveredPoint) {
     tooltipPinned = !tooltipPinned;
@@ -464,12 +486,18 @@ canvas.addEventListener('click', (e) => {
       selectedPoint = hoveredPoint;
       showPinnedTooltip(hoveredPoint);
     } else {
-      selectedPoint = null; tooltip.style.display='none';
+      selectedPoint = null; 
+      tooltip.style.display='none';
     }
     scheduleRender();
   } else {
-    if (tooltipPinned) { tooltipPinned = false; tooltip.classList.remove('pinned'); }
-    selectedPoint = null; tooltip.style.display='none'; scheduleRender();
+    if (tooltipPinned) { 
+      tooltipPinned = false; 
+      tooltip.classList.remove('pinned'); 
+    }
+    selectedPoint = null; 
+    tooltip.style.display='none'; 
+    scheduleRender();
   }
 });
 
@@ -481,15 +509,59 @@ canvas.addEventListener('wheel', (e) => {
   const zoomFactor = e.deltaY < 0 ? 1.12 : 0.88;
   camera.zoom = Math.max(0.01, Math.min(2000, camera.zoom * zoomFactor));
   const after = screenToWorld(mx, my);
-  camera.x += before.x - after.x; camera.y += before.y - after.y;
+  camera.x += before.x - after.x; 
+  camera.y += before.y - after.y;
 
-  loadVisibleChunks();
   if (needsRasterRecreate()) scheduleRasterRender(60);
   scheduleRender();
 }, { passive:false });
 
-/* ========== hover scheduling & finding nearest ========== */
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  if (e.touches.length === 1) {
+    isDragging = true;
+    const touch = e.touches[0];
+    dragStart = { x: touch.clientX, y: touch.clientY };
+  } else if (e.touches.length === 2) {
+    isDragging = false;
+    const dx = e.touches[1].clientX - e.touches[0].clientX;
+    const dy = e.touches[1].clientY - e.touches[0].clientY;
+    touchStartDist = Math.sqrt(dx*dx + dy*dy);
+    touchStartZoom = camera.zoom;
+  }
+}, { passive: false });
+
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  if (e.touches.length === 1 && isDragging) {
+    const touch = e.touches[0];
+    const dx = touch.clientX - dragStart.x;
+    const dy = touch.clientY - dragStart.y;
+    camera.x -= dx / camera.zoom;
+    camera.y -= dy / camera.zoom;
+    dragStart = { x: touch.clientX, y: touch.clientY };
+    scheduleRender();
+  } else if (e.touches.length === 2) {
+    const dx = e.touches[1].clientX - e.touches[0].clientX;
+    const dy = e.touches[1].clientY - e.touches[0].clientY;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    const scale = dist / touchStartDist;
+    camera.zoom = Math.max(0.01, Math.min(2000, touchStartZoom * scale));
+    
+    if (needsRasterRecreate()) scheduleRasterRender(60);
+    scheduleRender();
+  }
+}, { passive: false });
+
+canvas.addEventListener('touchend', (e) => {
+  e.preventDefault();
+  if (e.touches.length < 2) {
+    isDragging = false;
+  }
+}, { passive: false });
+
 let hoverCheckScheduled = false;
+
 function scheduleHoverCheck() {
   if (hoverCheckScheduled) return;
   hoverCheckScheduled = true;
@@ -497,7 +569,6 @@ function scheduleHoverCheck() {
 }
 
 function doHoverCheck() {
-  const rect = canvas.getBoundingClientRect();
   const world = screenToWorld(mouse.screenX, mouse.screenY);
   const thresholdWorld = HOVER_THRESHOLD_PX / Math.max(1, camera.zoom);
   let nearest = null, best = thresholdWorld * thresholdWorld;
@@ -513,15 +584,18 @@ function doHoverCheck() {
   if (nearest !== hoveredPoint) {
     hoveredPoint = nearest;
     if (!tooltipPinned) {
-      if (hoveredPoint) showHoverTooltip(hoveredPoint, mouse.clientX, mouse.clientY); else tooltip.style.display='none';
+      if (hoveredPoint) showHoverTooltip(hoveredPoint, mouse.clientX, mouse.clientY); 
+      else tooltip.style.display='none';
     }
     scheduleRender();
   } else if (hoveredPoint) {
-    if (!tooltipPinned) { tooltip.style.left = (mouse.clientX + 12) + 'px'; tooltip.style.top = (mouse.clientY + 12) + 'px'; }
+    if (!tooltipPinned) { 
+      tooltip.style.left = (mouse.clientX + 12) + 'px'; 
+      tooltip.style.top = (mouse.clientY + 12) + 'px'; 
+    }
   }
 }
 
-/* ========== Tooltip helpers ========== */
 function showHoverTooltip(pt, clientX, clientY) {
   const clusterName = metadata.clusters.find(c=>c.id===pt.cluster)?.name || 'Unknown';
   tooltip.innerHTML = `<strong>${pt.title}</strong><br><span style="color:#888;">Cluster: ${clusterName}</span>
@@ -531,6 +605,7 @@ function showHoverTooltip(pt, clientX, clientY) {
   tooltip.style.top = (clientY + 12) + 'px';
   tooltip.style.display = 'block';
 }
+
 function showPinnedTooltip(pt) {
   const clusterName = metadata.clusters.find(c=>c.id===pt.cluster)?.name || 'Unknown';
   tooltip.innerHTML = `<strong>${pt.title}</strong><br><span style="color:#888;">Cluster: ${clusterName}</span>
@@ -542,20 +617,10 @@ function showPinnedTooltip(pt) {
   tooltip.style.display = 'block';
 }
 
-/* ========== Pan debounce (load & raster triggers) ========== */
-let panLoadTimer = null;
-function scheduleLoadAfterPan(ms = 150) {
-  if (panLoadTimer) clearTimeout(panLoadTimer);
-  panLoadTimer = setTimeout(() => { panLoadTimer = null; loadVisibleChunks(); if (needsRasterRecreate()) scheduleRasterRender(120); }, ms);
-}
-
-/* ========== Debug UI ========== */
 function updateDebugInfo() {
-  const totalPoints = Array.from(loadedChunks.values()).reduce((s,arr)=>s+arr.length,0);
-  debugEl.textContent = `Loaded: ${loadedChunks.size}/${metadata ? metadata.chunks.length : 0} chunks (${totalPoints.toLocaleString()} pts). VisiblePoints: ${visiblePoints.length.toLocaleString()}`;
+  debugEl.textContent = `Loaded: ${loadedChunks.size}/${metadata ? metadata.chunks.length : 0} chunks (${allPoints.length.toLocaleString()} pts). Visible: ${visiblePoints.length.toLocaleString()}`;
 }
 
-/* ========== View helpers ========== */
 function fitToView() {
   if (!metadata) return;
   const b = metadata.bounds;
@@ -566,16 +631,17 @@ function fitToView() {
   camera.zoom = Math.min(zoomX, zoomY);
   camera.x = (b.x_min + b.x_max) / 2;
   camera.y = (b.y_min + b.y_max) / 2;
-  raster = null; visiblePoints = [];
+  raster = null; 
+  visiblePoints = [];
   scheduleRasterRender(30);
 }
-function resetView(){ fitToView(); }
 
-/* ========== START ========== */
-window.addEventListener('resize', resizeCanvas);
-resizeCanvas();
+function resetView(){ 
+  fitToView(); 
+  closeSidebarOnMobile();
+}
+
 loadMetadata();
-window.addEventListener('keydown', (e)=>{ if(e.key==='r') scheduleRasterRender(10); if(e.key==='0') resetView(); });
 </script>
 </body>
 </html>
