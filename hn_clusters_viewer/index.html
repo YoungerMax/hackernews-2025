@@ -1,647 +1,982 @@
 <!doctype html>
 <html lang="en">
+
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no" />
-<title>HackerNews Clustered, 2025 Edition</title>
-<style>
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#0a0a0a;color:#e0e0e0;overflow:hidden;touch-action:none}
-  #container{display:flex;height:100vh;height:100dvh}
-  #sidebar{width:320px;background:#1a1a1a;border-right:1px solid #333;overflow-y:auto;padding:20px;flex-shrink:0;transition:transform .3s ease}
-  #sidebar.hidden{transform:translateX(-100%)}
-  #canvas-container{flex:1;position:relative;display:flex;flex-direction:column}
-  canvas{display:block;cursor:grab;flex:1;background:#070707;touch-action:none}
-  canvas:active{cursor:grabbing}
-  h1{font-size:24px;margin-bottom:10px;color:#ff6600}
-  .stats{font-size:13px;color:#888;margin-bottom:20px;padding-bottom:15px;border-bottom:1px solid #333}
-  .cluster-list{display:flex;flex-direction:column;gap:8px}
-  .cluster-item{padding:12px;background:#252525;border-radius:6px;cursor:pointer;transition:all .15s;border:2px solid transparent}
-  .cluster-item:hover{background:#2a2a2a;transform:translateX(4px)}
-  .cluster-item.active{border-color:#ff6600;background:#2a2a2a}
-  .cluster-name{font-weight:600;font-size:14px;margin-bottom:4px}
-  .cluster-count{font-size:12px;color:#888}
-  .loading{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:18px;color:#888;text-align:center;padding:20px}
-  .controls{position:absolute;top:20px;right:20px;background:rgba(26,26,26,0.95);padding:12px;border-radius:8px;border:1px solid #333;z-index:100}
-  .controls button{display:block;width:100%;padding:10px;margin-bottom:8px;background:#252525;color:#e0e0e0;border:1px solid #444;border-radius:4px;cursor:pointer;font-size:13px}
-  .controls button:hover{background:#2a2a2a}
-  .controls button:last-child{margin-bottom:0}
-  .debug-info{position:absolute;bottom:20px;right:20px;background:rgba(26,26,26,0.95);padding:10px 15px;border-radius:8px;border:1px solid #333;font-size:11px;color:#888}
-  #tooltip{position:absolute;background:rgba(0,0,0,0.95);color:#fff;padding:10px 14px;border-radius:4px;font-size:13px;pointer-events:auto;display:none;max-width:420px;border:1px solid #444;z-index:1000;line-height:1.4}
-  #tooltip a{color:#ff6600;text-decoration:none;display:block;margin-top:6px;font-size:11px}
-  #tooltip.pinned{border-color:#ff6600}
-  .color-swatch{display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:6px;vertical-align:middle}
-  #sidebar-toggle{position:absolute;top:20px;left:20px;background:rgba(26,26,26,0.95);color:#e0e0e0;border:1px solid #444;border-radius:4px;padding:10px 14px;cursor:pointer;font-size:14px;z-index:101;display:none}
-  #sidebar-toggle:hover{background:#2a2a2a}
-  .progress-bar{width:100%;height:4px;background:#252525;border-radius:2px;margin-top:10px;overflow:hidden}
-  .progress-fill{height:100%;background:#ff6600;transition:width .3s ease}
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no" />
+  <title>HackerNews Clustered, 2025 Edition</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0
+    }
 
-  @media (max-width: 768px) {
-    #sidebar{position:absolute;top:0;left:0;height:100%;width:85%;max-width:320px;z-index:200;box-shadow:2px 0 10px rgba(0,0,0,0.5)}
-    #sidebar.hidden{transform:translateX(-100%)}
-    #sidebar-toggle{display:block; z-index: 1000;}
-    .controls{top:70px;right:10px;padding:8px}
-    .controls button{padding:8px;font-size:12px;margin-bottom:6px}
-    .debug-info{bottom:10px;right:10px;font-size:10px;padding:8px 12px}
-    #tooltip{max-width:280px;font-size:12px}
-    h1{font-size:20px}
-  }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0a0a0a;
+      color: #e0e0e0;
+      overflow: hidden;
+      touch-action: none
+    }
 
-  @media (max-width: 480px) {
-    #sidebar{width:90%;max-width:280px;padding:15px}
-    .controls{padding:6px}
-    .controls button{padding:6px;font-size:11px}
-    #tooltip{max-width:240px;font-size:11px;padding:8px 10px}
-  }
-</style>
-</head>
-<body>
-<div id="container">
-  <div id="sidebar">
-    <h1>HN Clustered 2025</h1>
-    <div class="stats" id="stats">Loading...</div>
-    
-    <div class="cluster-list" id="cluster-list"></div>
-  </div>
+    #container {
+      display: flex;
+      height: 100vh;
+      height: 100dvh
+    }
 
-  <button id="sidebar-toggle">☰ Menu</button>
+    #sidebar {
+      width: 320px;
+      background: #1a1a1a;
+      border-right: 1px solid #333;
+      overflow-y: auto;
+      padding: 20px;
+      flex-shrink: 0;
+      transition: transform .3s ease
+    }
 
-  <div id="canvas-container">
-    <div class="loading" id="loading">
-      <div id="loading-progress" style="display:none; pointer-events: none;">
-        <div style="font-size:12px;color:#888;margin-bottom:4px">Loading chunks: <span id="chunk-progress">0/0</span></div>
-        <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
-      </div>
-    </div>
-    <canvas id="canvas"></canvas>
-    <div class="controls">
-      <button id="resetBtn">Reset View</button>
-      <button id="showAllBtn">Show All</button>
-    </div>
-    <div class="debug-info" id="debug-info"></div>
-  </div>
-</div>
+    #sidebar.hidden {
+      transform: translateX(-100%)
+    }
 
-<div id="tooltip"></div>
+    #canvas-container {
+      flex: 1;
+      position: relative;
+      display: flex;
+      flex-direction: column
+    }
 
-<script>
-const DPR = Math.max(1, window.devicePixelRatio || 1);
-const MAX_RASTER_DIM = 4096;
-const MIN_RASTER_DIM = 256;
-const RASTER_PAD = 2.0;
-const ZOOM_RENDER_THRESHOLD = 1.25;
-const ZOOM_FACTOR_THRESHOLD = 1.35;
-const RASTER_DEBOUNCE_MS = 120;
-const VISIBLE_POINTS_CAP = 350000;
-const HOVER_SEARCH_CAP = 100000;
-const HOVER_THRESHOLD_PX = 10;
-const DOT_FRACTION = 0.22;
-const DOT_MIN_PX = 1;
-const DOT_MAX_PX = 14;
+    canvas {
+      display: block;
+      cursor: grab;
+      flex: 1;
+      background: #070707;
+      touch-action: none
+    }
 
-const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d', { alpha: false });
-const tooltip = document.getElementById('tooltip');
-const loadingEl = document.getElementById('loading');
-const debugEl = document.getElementById('debug-info');
-const statsEl = document.getElementById('stats');
-const clusterListEl = document.getElementById('cluster-list');
-const sidebar = document.getElementById('sidebar');
-const sidebarToggle = document.getElementById('sidebar-toggle');
-const loadingProgress = document.getElementById('loading-progress');
-const chunkProgress = document.getElementById('chunk-progress');
-const progressFill = document.getElementById('progress-fill');
+    canvas:active {
+      cursor: grabbing
+    }
 
-document.getElementById('resetBtn').addEventListener('click', resetView);
-document.getElementById('showAllBtn').addEventListener('click', () => { selectedCluster = null; rebuildRaster(); closeSidebarOnMobile(); });
+    h1 {
+      font-size: 24px;
+      margin-bottom: 10px;
+      color: #ff6600
+    }
 
-sidebarToggle.addEventListener('click', () => {
-  sidebar.classList.toggle('hidden');
-});
+    .stats {
+      font-size: 13px;
+      color: #888;
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid #333
+    }
 
-function closeSidebarOnMobile() {
-  if (window.innerWidth <= 768) {
-    sidebar.classList.add('hidden');
-  }
-}
+    .cluster-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px
+    }
 
-let metadata = null;
-let loadedChunks = new Map();
-let allPoints = [];
-let visiblePoints = [];
-let clusterColor = {};
-let selectedCluster = null;
+    .cluster-item {
+      padding: 12px;
+      background: #252525;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all .15s;
+      border: 2px solid transparent
+    }
 
-let camera = { x: 8.682248592376709, y: 4.607681751251221, zoom: 36.65814995608183 };
-let isDragging = false, dragStart = { x:0, y:0 };
-let touchStartDist = 0, touchStartZoom = 1;
-let mouse = { clientX:0, clientY:0, screenX:0, screenY:0 };
-let hoveredPoint = null;
-let selectedPoint = null;
-let tooltipPinned = false;
+    .cluster-item:hover {
+      background: #2a2a2a;
+      transform: translateX(4px)
+    }
 
-let raster = null;
-let rasterRenderTimer = null;
-let renderScheduled = false;
+    .cluster-item.active {
+      border-color: #ff6600;
+      background: #2a2a2a
+    }
 
-function scheduleRender() {
-  if (!renderScheduled) { renderScheduled = true; requestAnimationFrame(() => { renderScheduled = false; render(); }); }
-}
+    .cluster-name {
+      font-weight: 600;
+      font-size: 14px;
+      margin-bottom: 4px
+    }
 
-function resizeCanvas() {
-  const container = document.getElementById('canvas-container');
-  canvas.width = Math.round(container.clientWidth);
-  canvas.height = Math.round(container.clientHeight);
-  scheduleRender();
-}
+    .cluster-count {
+      font-size: 12px;
+      color: #888
+    }
 
-function screenToWorld(sx, sy) {
-  return {
-    x: (sx - canvas.width/2) / camera.zoom + camera.x,
-    y: (sy - canvas.height/2) / camera.zoom + camera.y
-  };
-}
+    .loading {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 18px;
+      color: #888;
+      text-align: center;
+      padding: 20px
+    }
 
-function worldToScreen(wx, wy) {
-  return {
-    x: (wx - camera.x) * camera.zoom + canvas.width/2,
-    y: (wy - camera.y) * camera.zoom + canvas.height/2
-  };
-}
+    .controls {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: rgba(26, 26, 26, 0.95);
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #333;
+      z-index: 100
+    }
 
-function getViewportBounds() {
-  const a = screenToWorld(0,0), b = screenToWorld(canvas.width, canvas.height);
-  return { x_min: Math.min(a.x,b.x), x_max: Math.max(a.x,b.x), y_min: Math.min(a.y,b.y), y_max: Math.max(a.y,b.y) };
-}
+    .controls button {
+      display: block;
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 8px;
+      background: #252525;
+      color: #e0e0e0;
+      border: 1px solid #444;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px
+    }
 
-function rectContains(a,b){ return a.x_min<=b.x_min && a.x_max>=b.x_max && a.y_min<=b.y_min && a.y_max>=b.y_max; }
+    .controls button:hover {
+      background: #2a2a2a
+    }
 
-async function loadMetadata() {
-  try {
-    const r = await fetch('metadata.json');
-    metadata = await r.json();
-    statsEl.innerHTML = `<div><strong>${metadata.total_points.toLocaleString()}</strong> posts</div>
-                         <div><strong>${metadata.num_clusters}</strong> clusters</div>`;
+    .controls button:last-child {
+      margin-bottom: 0
+    }
 
-    const COLORS = [
-      '#e6194B','#3cb44b','#ffe119','#4363d8','#f58231','#911eb4','#42d4f4','#f032e6',
-      '#bfef45','#fabed4','#469990','#dcbeff','#9A6324','#fffac8','#800000','#aaffc3',
-      '#808000','#ffd8b1','#000075','#a9a9a9'
-    ];
-    
-    metadata.clusters.forEach((c, idx) => {
-      clusterColor[c.id] = COLORS[idx % COLORS.length];
-      const div = document.createElement('div');
-      div.className = 'cluster-item'; 
-      div.dataset.clusterId = c.id;
-      div.innerHTML = `<div class="cluster-name"><span class="color-swatch" style="background:${clusterColor[c.id]}"></span>${c.name}</div>
-                        <div class="cluster-count">${c.count.toLocaleString()} posts</div>`;
-      div.addEventListener('click', () => { 
-        selectedCluster = (selectedCluster===c.id? null : c.id); 
-        document.querySelectorAll('.cluster-item').forEach(it=>it.classList.toggle('active', parseInt(it.dataset.clusterId)===selectedCluster)); 
-        rebuildRaster(); 
-        closeSidebarOnMobile();
-      });
-      clusterListEl.appendChild(div);
-    });
+    .debug-info {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      background: rgba(26, 26, 26, 0.95);
+      padding: 10px 15px;
+      border-radius: 8px;
+      border: 1px solid #333;
+      font-size: 11px;
+      color: #888
+    }
 
-    // loadingEl.textContent = 'Loading all chunks...';
-    loadingProgress.style.display = 'block';
-    await loadAllChunks();
-    loadingEl.style.display = 'none';
-    loadingProgress.style.display = 'none';
-  } catch (err) {
-    loadingEl.textContent = 'Error loading metadata: ' + err.message;
-    console.error(err);
-  }
-}
+    #tooltip {
+      position: absolute;
+      background: rgba(0, 0, 0, 0.95);
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 4px;
+      font-size: 13px;
+      pointer-events: auto;
+      display: none;
+      max-width: 420px;
+      border: 1px solid #444;
+      z-index: 1000;
+      line-height: 1.4
+    }
 
-async function loadAllChunks() {
-  if (!metadata) return;
-  
-  const totalChunks = metadata.chunks.length;
-  let loadedCount = 0;
-  
-  chunkProgress.textContent = `${loadedCount}/${totalChunks}`;
-  progressFill.style.width = '0%';
+    #tooltip a {
+      color: #ff6600;
+      text-decoration: none;
+      display: block;
+      margin-top: 6px;
+      font-size: 11px
+    }
 
-  const CONCURRENCY = 6;
-  let idx = 0;
-  
-  async function workerFetch() {
-    while (idx < metadata.chunks.length) {
-      const i = idx++;
-      const chunk = metadata.chunks[i];
-      try {
-        const r = await fetch(chunk.file);
-        const data = await r.json();
-        loadedChunks.set(chunk.file, data);
-        allPoints.push(...data);
-        
-        loadedCount++;
-        chunkProgress.textContent = `${loadedCount}/${totalChunks}`;
-        progressFill.style.width = `${(loadedCount / totalChunks) * 100}%`;
-        
-        rebuildVisiblePoints();
-        if (!raster) scheduleRasterRender(60);
-        scheduleRender();
-        updateDebugInfo();
-      } catch (err) {
-        console.error('load chunk failed', chunk.file, err);
+    #tooltip.pinned {
+      border-color: #ff6600
+    }
+
+    .color-swatch {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 2px;
+      margin-right: 6px;
+      vertical-align: middle
+    }
+
+    #sidebar-toggle {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: rgba(26, 26, 26, 0.95);
+      color: #e0e0e0;
+      border: 1px solid #444;
+      border-radius: 4px;
+      padding: 10px 14px;
+      cursor: pointer;
+      font-size: 14px;
+      z-index: 101;
+      display: none
+    }
+
+    #sidebar-toggle:hover {
+      background: #2a2a2a
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 4px;
+      background: #252525;
+      border-radius: 2px;
+      margin-top: 10px;
+      overflow: hidden
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: #ff6600;
+      transition: width .3s ease
+    }
+
+    @media (max-width: 768px) {
+      #sidebar {
+        position: absolute;
+        top: 0;
+        left: 0;
+        height: 100%;
+        width: 85%;
+        max-width: 320px;
+        z-index: 200;
+        box-shadow: 2px 0 10px rgba(0, 0, 0, 0.5)
+      }
+
+      #sidebar.hidden {
+        transform: translateX(-100%)
+      }
+
+      #sidebar-toggle {
+        display: block;
+        z-index: 1000;
+      }
+
+      .controls {
+        top: 70px;
+        right: 10px;
+        padding: 8px
+      }
+
+      .controls button {
+        padding: 8px;
+        font-size: 12px;
+        margin-bottom: 6px
+      }
+
+      .debug-info {
+        bottom: 10px;
+        right: 10px;
+        font-size: 10px;
+        padding: 8px 12px
+      }
+
+      #tooltip {
+        max-width: 280px;
+        font-size: 12px
+      }
+
+      h1 {
+        font-size: 20px
       }
     }
-  }
-  
-  const workers = Array.from({length: Math.min(CONCURRENCY, metadata.chunks.length)}, workerFetch);
-  await Promise.all(workers);
-  
-  rebuildVisiblePoints();
-  scheduleRasterRender(40);
-}
 
-function rebuildVisiblePoints() {
-  visiblePoints = [];
-  const worldRect = raster ? raster.worldRect : getViewportBounds();
-  const padW = (worldRect.x_max - worldRect.x_min) * 0.5;
-  const padH = (worldRect.y_max - worldRect.y_min) * 0.5;
-  const filterRect = { x_min: worldRect.x_min - padW, x_max: worldRect.x_max + padW, y_min: worldRect.y_min - padH, y_max: worldRect.y_max + padH };
+    @media (max-width: 480px) {
+      #sidebar {
+        width: 90%;
+        max-width: 280px;
+        padding: 15px
+      }
 
-  for (const p of allPoints) {
-    if (selectedCluster !== null && p.cluster !== selectedCluster) continue;
-    if (p.x < filterRect.x_min || p.x > filterRect.x_max || p.y < filterRect.y_min || p.y > filterRect.y_max) continue;
-    visiblePoints.push(p);
-    if (visiblePoints.length >= VISIBLE_POINTS_CAP) break;
-  }
-}
+      .controls {
+        padding: 6px
+      }
 
-function scheduleRasterRender(ms = RASTER_DEBOUNCE_MS) {
-  if (rasterRenderTimer) clearTimeout(rasterRenderTimer);
-  rasterRenderTimer = setTimeout(() => { rasterRenderTimer = null; createRasterForCurrentView(); }, ms);
-}
+      .controls button {
+        padding: 6px;
+        font-size: 11px
+      }
 
-function needsRasterRecreate() {
-  if (!raster) return true;
-  const view = getViewportBounds();
-  if (!rectContains(raster.worldRect, view)) return true;
-  const currentPPWU = camera.zoom * DPR;
-  if (currentPPWU > raster.pixelsPerWorldUnit * ZOOM_RENDER_THRESHOLD) return true;
-  const zf = camera.zoom / (raster.createdAtZoom || camera.zoom);
-  if (zf > ZOOM_FACTOR_THRESHOLD || zf < 1/ZOOM_FACTOR_THRESHOLD) return true;
-  return false;
-}
+      #tooltip {
+        max-width: 240px;
+        font-size: 11px;
+        padding: 8px 10px
+      }
+    }
+  </style>
+</head>
 
-function rebuildRaster() {
-  raster = null;
-  rebuildVisiblePoints();
-  scheduleRasterRender(40);
-}
+<body>
+  <div id="container">
+    <div id="sidebar">
+      <h1>HN Clustered 2025</h1>
+      <div class="stats" id="stats">Loading...</div>
 
-function createRasterForCurrentView() {
-  if (!metadata || allPoints.length === 0) { scheduleRasterRender(150); return; }
+      <div class="cluster-list" id="cluster-list"></div>
+    </div>
 
-  const view = getViewportBounds();
-  const w = view.x_max - view.x_min, h = view.y_max - view.y_min;
-  const padW = w * ((RASTER_PAD - 1) / 2), padH = h * ((RASTER_PAD - 1) / 2);
-  const worldRect = { x_min: view.x_min - padW, x_max: view.x_max + padW, y_min: view.y_min - padH, y_max: view.y_max + padH };
+    <button id="sidebar-toggle">☰ Menu</button>
 
-  let ppwu = camera.zoom * DPR;
-  let rasterW = Math.max(2, Math.round((worldRect.x_max - worldRect.x_min) * ppwu));
-  let rasterH = Math.max(2, Math.round((worldRect.y_max - worldRect.y_min) * ppwu));
+    <div id="canvas-container">
+      <div class="loading" id="loading">
+        <div id="loading-progress" style="display:none; pointer-events: none;">
+          <div style="font-size:12px;color:#888;margin-bottom:4px">Loading chunks: <span id="chunk-progress">0/0</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+          </div>
+        </div>
+      </div>
+      <canvas id="canvas"></canvas>
+      <div class="controls">
+        <button id="resetBtn">Reset View</button>
+        <button id="showAllBtn">Show All</button>
+      </div>
+      <div class="debug-info" id="debug-info"></div>
+    </div>
+  </div>
 
-  if (rasterW > MAX_RASTER_DIM || rasterH > MAX_RASTER_DIM) {
-    const scaleClamp = Math.min(MAX_RASTER_DIM / rasterW, MAX_RASTER_DIM / rasterH);
-    ppwu = ppwu * scaleClamp;
-    rasterW = Math.max(MIN_RASTER_DIM, Math.round((worldRect.x_max - worldRect.x_min) * ppwu));
-    rasterH = Math.max(MIN_RASTER_DIM, Math.round((worldRect.y_max - worldRect.y_min) * ppwu));
-  }
+  <div id="tooltip"></div>
 
-  visiblePoints = [];
-  for (const p of allPoints) {
-    if (selectedCluster !== null && p.cluster !== selectedCluster) continue;
-    if (p.x < worldRect.x_min || p.x > worldRect.x_max || p.y < worldRect.y_min || p.y > worldRect.y_max) continue;
-    visiblePoints.push(p);
-    if (visiblePoints.length >= VISIBLE_POINTS_CAP) break;
-  }
+  <script>
+    const DPR = Math.max(1, window.devicePixelRatio || 1);
+    const MAX_RASTER_DIM = 4096;
+    const MIN_RASTER_DIM = 256;
+    const RASTER_PAD = 2.0;
+    const ZOOM_RENDER_THRESHOLD = 1.25;
+    const ZOOM_FACTOR_THRESHOLD = 1.35;
+    const RASTER_DEBOUNCE_MS = 120;
+    const VISIBLE_POINTS_CAP = 350000;
+    const HOVER_SEARCH_CAP = 100000;
+    const HOVER_THRESHOLD_PX = 10;
+    const DOT_FRACTION = 0.22;
+    const DOT_MIN_PX = 1;
+    const DOT_MAX_PX = 14;
 
-  const n = visiblePoints.length || 1;
-  const worldArea = (worldRect.x_max - worldRect.x_min) * (worldRect.y_max - worldRect.y_min);
-  const avgSpacingWorld = Math.sqrt(worldArea / n);
-  const avgPixelSpacing = avgSpacingWorld * ppwu;
-  let dotSizePx = Math.round(avgPixelSpacing * DOT_FRACTION);
-  dotSizePx = Math.max(DOT_MIN_PX, Math.min(DOT_MAX_PX, dotSizePx));
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d', { alpha: false });
+    const tooltip = document.getElementById('tooltip');
+    const loadingEl = document.getElementById('loading');
+    const debugEl = document.getElementById('debug-info');
+    const statsEl = document.getElementById('stats');
+    const clusterListEl = document.getElementById('cluster-list');
+    const sidebar = document.getElementById('sidebar');
+    const sidebarToggle = document.getElementById('sidebar-toggle');
+    const loadingProgress = document.getElementById('loading-progress');
+    const chunkProgress = document.getElementById('chunk-progress');
+    const progressFill = document.getElementById('progress-fill');
 
-  const off = document.createElement('canvas');
-  off.width = rasterW;
-  off.height = rasterH;
-  const oc = off.getContext('2d', { alpha: false });
+    document.getElementById('resetBtn').addEventListener('click', resetView);
+    document.getElementById('showAllBtn').addEventListener('click', () => { selectedCluster = null; rebuildRaster(); closeSidebarOnMobile(); });
 
-  oc.fillStyle = '#070707';
-  oc.fillRect(0,0,off.width,off.height);
+    sidebarToggle.addEventListener('click', () => {
+      sidebar.classList.toggle('hidden');
+    });
 
-  const sampleFactor = visiblePoints.length > VISIBLE_POINTS_CAP ? (visiblePoints.length / VISIBLE_POINTS_CAP) : 1;
-  const step = Math.max(1, Math.ceil(sampleFactor));
-  const half = Math.max(1, Math.floor(dotSizePx / 2));
+    function closeSidebarOnMobile() {
+      if (window.innerWidth <= 768) {
+        sidebar.classList.add('hidden');
+      }
+    }
 
-  for (let i=0; i<visiblePoints.length; i+=step) {
-    const p = visiblePoints[i];
-    const px = Math.round((p.x - worldRect.x_min) * ppwu);
-    const py = Math.round((p.y - worldRect.y_min) * ppwu);
-    oc.fillStyle = clusterColor[p.cluster] || '#ffffff';
-    oc.fillRect(px - half, py - half, dotSizePx, dotSizePx);
-  }
+    let metadata = null;
+    let loadedChunks = new Map();
+    let allPoints = [];
+    let visiblePoints = [];
+    let clusterColor = {};
+    let selectedCluster = null;
 
-  raster = {
-    canvas: off,
-    worldRect,
-    pixelsPerWorldUnit: ppwu,
-    createdAtZoom: camera.zoom,
-    computedDotSizePx: dotSizePx,
-    avgPixelSpacing
-  };
+    let camera = { x: 8.682248592376709, y: 4.607681751251221, zoom: 36.65814995608183 };
+    let isDragging = false, dragStart = { x: 0, y: 0 };
+    let touchStartDist = 0, touchStartZoom = 1;
+    let mouse = { clientX: 0, clientY: 0, screenX: 0, screenY: 0 };
+    let hoveredPoint = null;
+    let selectedPoint = null;
+    let tooltipPinned = false;
+    let touchMoved = false;
+    let raster = null;
+    let rasterRenderTimer = null;
+    let renderScheduled = false;
 
-  scheduleRender();
-  updateDebugInfo();
-}
+    function scheduleRender() {
+      if (!renderScheduled) {
+        renderScheduled = true;
+        requestAnimationFrame(() => { renderScheduled = false; render(); });
+      }
+    }
 
-function render() {
-  ctx.fillStyle = '#070707';
-  ctx.fillRect(0,0,canvas.width,canvas.height);
+    function resizeCanvas() {
+      const container = document.getElementById('canvas-container');
+      canvas.width = Math.round(container.clientWidth);
+      canvas.height = Math.round(container.clientHeight);
+      scheduleRender();
+    }
 
-  if (needsRasterRecreate()) {
-    scheduleRasterRender(60);
-  }
+    function screenToWorld(sx, sy) {
+      return {
+        x: (sx - canvas.width / 2) / camera.zoom + camera.x,
+        y: (sy - canvas.height / 2) / camera.zoom + camera.y
+      };
+    }
 
-  if (raster) {
-    const tl = worldToScreen(raster.worldRect.x_min, raster.worldRect.y_min);
-    const br = worldToScreen(raster.worldRect.x_max, raster.worldRect.y_max);
-    const dx = tl.x, dy = tl.y, dw = br.x - tl.x, dh = br.y - tl.y;
-    try {
-      ctx.drawImage(raster.canvas, dx, dy, dw, dh);
-    } catch (err) {
-      console.error('drawImage failed', err);
+    function worldToScreen(wx, wy) {
+      return {
+        x: (wx - camera.x) * camera.zoom + canvas.width / 2,
+        y: (wy - camera.y) * camera.zoom + canvas.height / 2
+      };
+    }
+
+    function getViewportBounds() {
+      const a = screenToWorld(0, 0), b = screenToWorld(canvas.width, canvas.height);
+      return {
+        x_min: Math.min(a.x, b.x),
+        x_max: Math.max(a.x, b.x),
+        y_min: Math.min(a.y, b.y),
+        y_max: Math.max(a.y, b.y)
+      };
+    }
+
+    function rectContains(a, b) {
+      return a.x_min <= b.x_min &&
+             a.x_max >= b.x_max &&
+             a.y_min <= b.y_min &&
+             a.y_max >= b.y_max;
+    }
+
+    async function loadMetadata() {
+      try {
+        const r = await fetch('metadata.json');
+        metadata = await r.json();
+        statsEl.innerHTML = `
+        <div>
+          <strong>${metadata.total_points.toLocaleString()}</strong> posts
+        </div>
+        <div>
+          <strong>${metadata.num_clusters}</strong> clusters
+        </div>`;
+
+        const COLORS = [
+          '#e6194B', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#42d4f4', '#f032e6',
+          '#bfef45', '#fabed4', '#469990', '#dcbeff', '#9A6324', '#fffac8', '#800000', '#aaffc3',
+          '#808000', '#ffd8b1', '#000075', '#a9a9a9'
+        ];
+
+        metadata.clusters.forEach((c, idx) => {
+          clusterColor[c.id] = COLORS[idx % COLORS.length];
+          const div = document.createElement('div');
+          div.className = 'cluster-item';
+          div.dataset.clusterId = c.id;
+          div.innerHTML = `<div class="cluster-name">
+                            <span class="color-swatch" style="background:${clusterColor[c.id]}"></span>
+                            ${c.name}
+                          </div>
+                          <div class="cluster-count">
+                            ${c.count.toLocaleString()} posts
+                          </div>`;
+          div.addEventListener('click', () => {
+            selectedCluster = (selectedCluster === c.id ? null : c.id);
+            document.querySelectorAll('.cluster-item').forEach(it => it.classList.toggle('active', parseInt(it.dataset.clusterId) === selectedCluster));
+            rebuildRaster();
+            closeSidebarOnMobile();
+          });
+          clusterListEl.appendChild(div);
+        });
+
+        loadingProgress.style.display = 'block';
+        await loadAllChunks();
+        loadingEl.style.display = 'none';
+        loadingProgress.style.display = 'none';
+      } catch (err) {
+        loadingEl.textContent = 'Error loading metadata: ' + err.message;
+        console.error(err);
+      }
+    }
+
+    async function loadAllChunks() {
+      if (!metadata) {
+        return;
+      }
+
+      let loadedCount = 0;
+      const totalChunks = metadata.chunks.length;
+
+      const loaders = metadata.chunks.map(async (chunk) => {
+        try {
+            const r = await fetch(chunk.file);
+            const data = await r.json();
+            loadedChunks.set(chunk.file, data);
+            allPoints.push(...data);
+
+            loadedCount++;
+            chunkProgress.textContent = `${loadedCount}/${totalChunks}`;
+            progressFill.style.width = `${(loadedCount / totalChunks) * 100}%`;
+
+            rebuildVisiblePoints();
+            if (!raster) scheduleRasterRender(60);
+            scheduleRender();
+            updateDebugInfo();
+          } catch (err) {
+            console.error('load chunk failed', chunk.file, err);
+          }
+      });
+
+      progressFill.style.width = '0%';
+
+      await Promise.all(loaders);
+
+      rebuildVisiblePoints();
+      scheduleRasterRender(40);
+    }
+
+    function rebuildVisiblePoints() {
+      visiblePoints = [];
+
+      const viewportBounds = raster ? raster.worldRect : getViewportBounds();
+      const padW = (viewportBounds.x_max - viewportBounds.x_min) * 0.5;
+      const padH = (viewportBounds.y_max - viewportBounds.y_min) * 0.5;
+      const filterRect = {
+        x_min: viewportBounds.x_min - padW,
+        x_max: viewportBounds.x_max + padW,
+        y_min: viewportBounds.y_min - padH,
+        y_max: viewportBounds.y_max + padH
+      };
+
+      for (const p of allPoints) {
+        if (selectedCluster !== null && p.cluster !== selectedCluster) {
+          continue;
+        }
+
+        // outside of filter
+        if (p.x < filterRect.x_min || p.x > filterRect.x_max || p.y < filterRect.y_min || p.y > filterRect.y_max) {
+          continue;
+        }
+
+        visiblePoints.push(p);
+
+        // limit visible points
+        if (visiblePoints.length >= VISIBLE_POINTS_CAP) {
+          break;
+        }
+      }
+    }
+
+    function scheduleRasterRender(ms = RASTER_DEBOUNCE_MS) {
+      if (rasterRenderTimer) {
+        clearTimeout(rasterRenderTimer);
+      }
+
+      rasterRenderTimer = setTimeout(() => {
+        rasterRenderTimer = null;
+        createRasterForCurrentView();
+      }, ms);
+    }
+
+    function needsRasterRecreate() {
+      if (!raster) {
+        return true;
+      }
+
+      const view = getViewportBounds();
+
+      if (!rectContains(raster.worldRect, view)) {
+        return true;
+      }
+      
+      const zf = camera.zoom / (raster.createdAtZoom || camera.zoom);
+
+      if (zf > ZOOM_FACTOR_THRESHOLD || zf < 1 / ZOOM_FACTOR_THRESHOLD) {
+        return true;
+      }
+
+      return false;
+    }
+
+    function rebuildRaster() {
       raster = null;
-      scheduleRasterRender(200);
+      rebuildVisiblePoints();
+      scheduleRasterRender(40);
     }
-  } else {
-    drawPointsDirectly(100000);
-  }
 
-  if (hoveredPoint) {
-    const s = worldToScreen(hoveredPoint.x, hoveredPoint.y);
-    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-    ctx.lineWidth = Math.max(1, 2);
-    const base = raster ? Math.max(6, Math.round(raster.computedDotSizePx * 1.8)) : Math.max(6, 6 * Math.min(1, camera.zoom));
-    ctx.beginPath();
-    ctx.arc(s.x, s.y, base, 0, Math.PI*2);
-    ctx.stroke();
-  }
+    function createRasterForCurrentView() {
+      if (!metadata || allPoints.length === 0) {
+        scheduleRasterRender(150);
+        return;
+      }
 
-  if (selectedPoint) {
-    const s = worldToScreen(selectedPoint.x, selectedPoint.y);
-    ctx.strokeStyle = '#ffcc00';
-    ctx.lineWidth = 2;
-    const base = raster ? Math.max(8, Math.round(raster.computedDotSizePx * 2.2)) : 8;
-    ctx.beginPath();
-    ctx.arc(s.x, s.y, base, 0, Math.PI*2);
-    ctx.stroke();
-    ctx.fillStyle = '#ffcc00';
-    ctx.beginPath();
-    ctx.arc(s.x, s.y, Math.max(2, Math.round((raster ? raster.computedDotSizePx : 2) * 0.35)), 0, Math.PI*2);
-    ctx.fill();
-  }
-}
+      const view = getViewportBounds();
+      const w = view.x_max - view.x_min, h = view.y_max - view.y_min;
+      const padW = w * ((RASTER_PAD - 1) / 2), padH = h * ((RASTER_PAD - 1) / 2);
+      const worldRect = { x_min: view.x_min - padW, x_max: view.x_max + padW, y_min: view.y_min - padH, y_max: view.y_max + padH };
 
-function drawPointsDirectly(maxPoints=50000) {
-  const view = getViewportBounds();
-  const worldW = view.x_max - view.x_min, worldH = view.y_max - view.y_min;
-  const n = Math.max(1, visiblePoints.length);
-  const avgSpacingWorld = Math.sqrt((worldW * worldH) / n);
-  const avgPixelSpacing = avgSpacingWorld * camera.zoom;
-  let dotSizePx = Math.round(avgPixelSpacing * DOT_FRACTION);
-  dotSizePx = Math.max(DOT_MIN_PX, Math.min(DOT_MAX_PX, dotSizePx));
-  const half = Math.max(1, Math.floor(dotSizePx / 2));
+      let ppwu = camera.zoom * DPR;
+      let rasterW = Math.max(2, Math.round((worldRect.x_max - worldRect.x_min) * ppwu));
+      let rasterH = Math.max(2, Math.round((worldRect.y_max - worldRect.y_min) * ppwu));
 
-  let count = 0;
-  for (const p of visiblePoints) {
-    if (selectedCluster !== null && p.cluster !== selectedCluster) continue;
-    const s = worldToScreen(p.x,p.y);
-    if (s.x < -8 || s.x > canvas.width+8 || s.y < -8 || s.y > canvas.height+8) continue;
-    ctx.fillStyle = clusterColor[p.cluster] || '#fff';
-    ctx.fillRect(s.x - half, s.y - half, dotSizePx, dotSizePx);
-    if (++count >= maxPoints) return;
-  }
-}
+      if (rasterW > MAX_RASTER_DIM || rasterH > MAX_RASTER_DIM) {
+        const scaleClamp = Math.min(MAX_RASTER_DIM / rasterW, MAX_RASTER_DIM / rasterH);
+        ppwu = ppwu * scaleClamp;
+        rasterW = Math.max(MIN_RASTER_DIM, Math.round((worldRect.x_max - worldRect.x_min) * ppwu));
+        rasterH = Math.max(MIN_RASTER_DIM, Math.round((worldRect.y_max - worldRect.y_min) * ppwu));
+      }
 
-window.addEventListener('resize', resizeCanvas);
-resizeCanvas();
+      visiblePoints = [];
 
-canvas.addEventListener('mousedown', (e) => {
-  isDragging = true; 
-  dragStart = { x: e.clientX, y: e.clientY };
-});
+      for (const p of allPoints) {
+        if (selectedCluster !== null && p.cluster !== selectedCluster) continue;
+        if (p.x < worldRect.x_min || p.x > worldRect.x_max || p.y < worldRect.y_min || p.y > worldRect.y_max) continue;
+        visiblePoints.push(p);
+        if (visiblePoints.length >= VISIBLE_POINTS_CAP) break;
+      }
 
-canvas.addEventListener('mousemove', (e) => {
-  mouse.clientX = e.clientX; 
-  mouse.clientY = e.clientY;
-  const rect = canvas.getBoundingClientRect();
-  mouse.screenX = e.clientX - rect.left; 
-  mouse.screenY = e.clientY - rect.top;
+      const n = visiblePoints.length || 1;
+      const worldArea = (worldRect.x_max - worldRect.x_min) * (worldRect.y_max - worldRect.y_min);
+      const avgSpacingWorld = Math.sqrt(worldArea / n);
+      const avgPixelSpacing = avgSpacingWorld * ppwu;
+      let dotSizePx = Math.round(avgPixelSpacing * DOT_FRACTION);
+      dotSizePx = Math.max(DOT_MIN_PX, Math.min(DOT_MAX_PX, dotSizePx));
 
-  if (isDragging) {
-    const dx = e.clientX - dragStart.x, dy = e.clientY - dragStart.y;
-    camera.x -= dx / camera.zoom; 
-    camera.y -= dy / camera.zoom;
-    dragStart = { x: e.clientX, y: e.clientY };
-    scheduleRender();
-  } else {
-    scheduleHoverCheck();
-  }
-});
+      const off = document.createElement('canvas');
+      off.width = rasterW;
+      off.height = rasterH;
+      const oc = off.getContext('2d', { alpha: false });
 
-canvas.addEventListener('mouseup', () => { isDragging = false; });
-canvas.addEventListener('mouseleave', () => { 
-  isDragging = false; 
-  if (!tooltipPinned) { 
-    tooltip.style.display='none'; 
-    hoveredPoint=null; 
-    scheduleRender(); 
-  } 
-});
+      oc.fillStyle = '#070707';
+      oc.fillRect(0, 0, off.width, off.height);
 
-canvas.addEventListener('click', (e) => {
-  // click check
-  mouse.clientX = e.clientX; 
-  mouse.clientY = e.clientY;
-  const rect = canvas.getBoundingClientRect();
-  mouse.screenX = e.clientX - rect.left; 
-  mouse.screenY = e.clientY - rect.top;
-  doHoverCheck();
+      const sampleFactor = visiblePoints.length > VISIBLE_POINTS_CAP ? (visiblePoints.length / VISIBLE_POINTS_CAP) : 1;
+      const step = Math.max(1, Math.ceil(sampleFactor));
+      const half = Math.max(1, Math.floor(dotSizePx / 2));
 
-  // thing
-  if (isDragging) return;
-  if (hoveredPoint) {
-    tooltipPinned = !tooltipPinned;
-    tooltip.classList.toggle('pinned', tooltipPinned);
-    if (tooltipPinned) {
-      selectedPoint = hoveredPoint;
-      showPinnedTooltip(hoveredPoint);
-    } else {
-      selectedPoint = null; 
-      tooltip.style.display='none';
+      for (let i = 0; i < visiblePoints.length; i += step) {
+        const p = visiblePoints[i];
+        const px = Math.round((p.x - worldRect.x_min) * ppwu);
+        const py = Math.round((p.y - worldRect.y_min) * ppwu);
+        oc.fillStyle = clusterColor[p.cluster] || '#ffffff';
+        oc.fillRect(px - half, py - half, dotSizePx, dotSizePx);
+      }
+
+      raster = {
+        canvas: off,
+        worldRect,
+        pixelsPerWorldUnit: ppwu,
+        createdAtZoom: camera.zoom,
+        computedDotSizePx: dotSizePx,
+        avgPixelSpacing
+      };
+
+      scheduleRender();
+      updateDebugInfo();
     }
-    scheduleRender();
-  } else {
-    if (tooltipPinned) { 
-      tooltipPinned = false; 
-      tooltip.classList.remove('pinned'); 
+
+    function render() {
+      // background
+      ctx.fillStyle = '#070707';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      if (needsRasterRecreate()) {
+        scheduleRasterRender(60);
+      }
+
+      if (raster) {
+        const tl = worldToScreen(raster.worldRect.x_min, raster.worldRect.y_min);
+        const br = worldToScreen(raster.worldRect.x_max, raster.worldRect.y_max);
+        const dx = tl.x, dy = tl.y, dw = br.x - tl.x, dh = br.y - tl.y;
+        try {
+          ctx.drawImage(raster.canvas, dx, dy, dw, dh);
+        } catch (err) {
+          console.error('drawImage failed', err);
+          raster = null;
+          scheduleRasterRender(200);
+        }
+      } else {
+        drawPointsDirectly(100000);
+      }
+
+      if (hoveredPoint) {
+        const s = worldToScreen(hoveredPoint.x, hoveredPoint.y);
+        ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+        ctx.lineWidth = Math.max(1, 2);
+        const base = raster ? Math.max(6, Math.round(raster.computedDotSizePx * 1.8)) : Math.max(6, 6 * Math.min(1, camera.zoom));
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, base, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      if (selectedPoint) {
+        const s = worldToScreen(selectedPoint.x, selectedPoint.y);
+        ctx.strokeStyle = '#ffcc00';
+        ctx.lineWidth = 2;
+        const base = raster ? Math.max(8, Math.round(raster.computedDotSizePx * 2.2)) : 8;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, base, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = '#ffcc00';
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, Math.max(2, Math.round((raster ? raster.computedDotSizePx : 2) * 0.35)), 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
-    selectedPoint = null; 
-    tooltip.style.display='none'; 
-    scheduleRender();
-  }
-});
 
-canvas.addEventListener('wheel', (e) => {
-  e.preventDefault();
-  const rect = canvas.getBoundingClientRect();
-  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
-  const before = screenToWorld(mx, my);
-  const zoomFactor = e.deltaY < 0 ? 1.12 : 0.88;
-  camera.zoom = Math.max(0.01, Math.min(2000, camera.zoom * zoomFactor));
-  const after = screenToWorld(mx, my);
-  camera.x += before.x - after.x; 
-  camera.y += before.y - after.y;
+    function drawPointsDirectly(maxPoints = 50000) {
+      const view = getViewportBounds();
+      const worldW = view.x_max - view.x_min;
+      const worldH = view.y_max - view.y_min;
+      const n = Math.max(1, visiblePoints.length);
+      const avgSpacingWorld = Math.sqrt((worldW * worldH) / n);
+      const avgPixelSpacing = avgSpacingWorld * camera.zoom;
+      let dotSizePx = Math.round(avgPixelSpacing * DOT_FRACTION);
+      dotSizePx = Math.max(DOT_MIN_PX, Math.min(DOT_MAX_PX, dotSizePx));
+      const half = Math.max(1, Math.floor(dotSizePx / 2));
 
-  if (needsRasterRecreate()) scheduleRasterRender(60);
-  scheduleRender();
-}, { passive:false });
+      let count = 0;
+      for (const p of visiblePoints) {
+        /*
+        should already be checked by rebuildVisiblePoints:
 
-canvas.addEventListener('touchstart', (e) => {
-  e.preventDefault();
-  if (e.touches.length === 1) {
-    isDragging = true;
-    const touch = e.touches[0];
-    dragStart = { x: touch.clientX, y: touch.clientY };
-  } else if (e.touches.length === 2) {
-    isDragging = false;
-    const dx = e.touches[1].clientX - e.touches[0].clientX;
-    const dy = e.touches[1].clientY - e.touches[0].clientY;
-    touchStartDist = Math.sqrt(dx*dx + dy*dy);
-    touchStartZoom = camera.zoom;
-  }
-}, { passive: false });
+        if (selectedCluster !== null && p.cluster !== selectedCluster) {
+          continue;
+        }*/
 
-canvas.addEventListener('touchmove', (e) => {
-  e.preventDefault();
-  if (e.touches.length === 1 && isDragging) {
-    const touch = e.touches[0];
-    const dx = touch.clientX - dragStart.x;
-    const dy = touch.clientY - dragStart.y;
-    camera.x -= dx / camera.zoom;
-    camera.y -= dy / camera.zoom;
-    dragStart = { x: touch.clientX, y: touch.clientY };
-    scheduleRender();
-  } else if (e.touches.length === 2) {
-    const dx = e.touches[1].clientX - e.touches[0].clientX;
-    const dy = e.touches[1].clientY - e.touches[0].clientY;
-    const dist = Math.sqrt(dx*dx + dy*dy);
-    const scale = dist / touchStartDist;
-    camera.zoom = Math.max(0.01, Math.min(2000, touchStartZoom * scale));
-    
-    if (needsRasterRecreate()) scheduleRasterRender(60);
-    scheduleRender();
-  }
-}, { passive: false });
+        const s = worldToScreen(p.x, p.y);
 
-canvas.addEventListener('touchend', (e) => {
-  e.preventDefault();
-  if (e.touches.length < 2) {
-    isDragging = false;
-  }
-}, { passive: false });
+        if (s.x < -8 || s.x > canvas.width + 8 || s.y < -8 || s.y > canvas.height + 8) {
+          continue;
+        }
 
-let hoverCheckScheduled = false;
+        ctx.fillStyle = clusterColor[p.cluster] || '#fff';
+        ctx.fillRect(s.x - half, s.y - half, dotSizePx, dotSizePx);
 
-function scheduleHoverCheck() {
-  if (hoverCheckScheduled) return;
-  hoverCheckScheduled = true;
-  requestAnimationFrame(() => { hoverCheckScheduled = false; doHoverCheck(); });
-}
-
-function doHoverCheck() {
-  const world = screenToWorld(mouse.screenX, mouse.screenY);
-  const thresholdWorld = HOVER_THRESHOLD_PX / Math.max(1, camera.zoom);
-  let nearest = null, best = thresholdWorld * thresholdWorld;
-
-  const n = Math.min(visiblePoints.length, HOVER_SEARCH_CAP);
-  for (let i=0; i<n; ++i) {
-    const p = visiblePoints[i];
-    const dx = p.x - world.x, dy = p.y - world.y;
-    const d2 = dx*dx + dy*dy;
-    if (d2 < best) { best = d2; nearest = p; }
-  }
-
-  if (nearest !== hoveredPoint) {
-    hoveredPoint = nearest;
-    if (!tooltipPinned) {
-      if (hoveredPoint) showHoverTooltip(hoveredPoint, mouse.clientX, mouse.clientY); 
-      else tooltip.style.display='none';
+        if (++count >= maxPoints) {
+          return;
+        }
+      }
     }
-    scheduleRender();
-  } else if (hoveredPoint) {
-    if (!tooltipPinned) { 
-      tooltip.style.left = (mouse.clientX + 12) + 'px'; 
-      tooltip.style.top = (mouse.clientY + 12) + 'px'; 
-    }
-  }
-}
 
-function showHoverTooltip(pt, clientX, clientY) {
-  const clusterName = metadata.clusters.find(c=>c.id===pt.cluster)?.name || 'Unknown';
-  tooltip.innerHTML = `<strong>${pt.title}</strong><br><span style="color:#888;">Cluster: ${clusterName}</span>
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    canvas.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      dragStart = { x: e.clientX, y: e.clientY };
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+      mouse.clientX = e.clientX;
+      mouse.clientY = e.clientY;
+      const rect = canvas.getBoundingClientRect();
+      mouse.screenX = e.clientX - rect.left;
+      mouse.screenY = e.clientY - rect.top;
+
+      if (isDragging) {
+        const dx = e.clientX - dragStart.x, dy = e.clientY - dragStart.y;
+        camera.x -= dx / camera.zoom;
+        camera.y -= dy / camera.zoom;
+        dragStart = { x: e.clientX, y: e.clientY };
+        scheduleRender();
+      } else {
+        scheduleHoverCheck();
+      }
+    });
+
+    canvas.addEventListener('mouseup', () => { isDragging = false; });
+    canvas.addEventListener('mouseleave', () => {
+      isDragging = false;
+      if (!tooltipPinned) {
+        tooltip.style.display = 'none';
+        hoveredPoint = null;
+        scheduleRender();
+      }
+    });
+
+    // Update the click handler to ignore drags
+    canvas.addEventListener('click', (e) => {
+      // Ignore clicks that were actually drags
+      if (touchMoved) {
+        touchMoved = false;
+        return;
+      }
+
+      // click check
+      mouse.clientX = e.clientX;
+      mouse.clientY = e.clientY;
+      const rect = canvas.getBoundingClientRect();
+      mouse.screenX = e.clientX - rect.left;
+      mouse.screenY = e.clientY - rect.top;
+      doHoverCheck();
+
+      // thing
+      if (isDragging) return;
+      if (hoveredPoint) {
+        tooltipPinned = !tooltipPinned;
+        tooltip.classList.toggle('pinned', tooltipPinned);
+        if (tooltipPinned) {
+          selectedPoint = hoveredPoint;
+          showPinnedTooltip(hoveredPoint);
+        } else {
+          selectedPoint = null;
+          tooltip.style.display = 'none';
+        }
+        scheduleRender();
+      } else {
+        if (tooltipPinned) {
+          tooltipPinned = false;
+          tooltip.classList.remove('pinned');
+        }
+        selectedPoint = null;
+        tooltip.style.display = 'none';
+        scheduleRender();
+      }
+    });
+
+    canvas.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+      const before = screenToWorld(mx, my);
+      const zoomFactor = e.deltaY < 0 ? 1.12 : 0.88;
+      camera.zoom = Math.max(0.01, Math.min(2000, camera.zoom * zoomFactor));
+      const after = screenToWorld(mx, my);
+      camera.x += before.x - after.x;
+      camera.y += before.y - after.y;
+
+      if (needsRasterRecreate()) scheduleRasterRender(60);
+      scheduleRender();
+    }, { passive: false });
+
+    canvas.addEventListener('touchstart', (e) => {
+      touchMoved = false;
+      if (e.touches.length === 1) {
+        isDragging = true;
+        const touch = e.touches[0];
+        dragStart = { x: touch.clientX, y: touch.clientY };
+      } else if (e.touches.length === 2) {
+        e.preventDefault();
+        isDragging = false;
+        const dx = e.touches[1].clientX - e.touches[0].clientX;
+        const dy = e.touches[1].clientY - e.touches[0].clientY;
+        touchStartDist = Math.sqrt(dx * dx + dy * dy);
+        touchStartZoom = camera.zoom;
+      }
+    }, { passive: false });
+
+    // Replace the touchmove handler
+    canvas.addEventListener('touchmove', (e) => {
+      touchMoved = true;
+      if (e.touches.length === 1 && isDragging) {
+        e.preventDefault();
+        const touch = e.touches[0];
+        const dx = touch.clientX - dragStart.x;
+        const dy = touch.clientY - dragStart.y;
+        camera.x -= dx / camera.zoom;
+        camera.y -= dy / camera.zoom;
+        dragStart = { x: touch.clientX, y: touch.clientY };
+        scheduleRender();
+      } else if (e.touches.length === 2) {
+        e.preventDefault();
+        const dx = e.touches[1].clientX - e.touches[0].clientX;
+        const dy = e.touches[1].clientY - e.touches[0].clientY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const scale = dist / touchStartDist;
+        camera.zoom = Math.max(0.01, Math.min(2000, touchStartZoom * scale));
+
+        if (needsRasterRecreate()) scheduleRasterRender(60);
+        scheduleRender();
+      }
+    }, { passive: false });
+
+    // Replace the touchend handler
+    canvas.addEventListener('touchend', (e) => {
+      if (e.touches.length < 2) {
+        isDragging = false;
+      }
+      // Don't prevent default to allow click events
+    }, { passive: true });
+
+    let hoverCheckScheduled = false;
+
+    function scheduleHoverCheck() {
+      if (hoverCheckScheduled) return;
+      hoverCheckScheduled = true;
+      requestAnimationFrame(() => { hoverCheckScheduled = false; doHoverCheck(); });
+    }
+
+    function doHoverCheck() {
+      const world = screenToWorld(mouse.screenX, mouse.screenY);
+      const thresholdWorld = HOVER_THRESHOLD_PX / Math.max(1, camera.zoom);
+      let nearest = null, best = thresholdWorld * thresholdWorld;
+
+      const n = Math.min(visiblePoints.length, HOVER_SEARCH_CAP);
+      for (let i = 0; i < n; ++i) {
+        const p = visiblePoints[i];
+        const dx = p.x - world.x, dy = p.y - world.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < best) { best = d2; nearest = p; }
+      }
+
+      if (nearest !== hoveredPoint) {
+        hoveredPoint = nearest;
+        if (!tooltipPinned) {
+          if (hoveredPoint) showHoverTooltip(hoveredPoint, mouse.clientX, mouse.clientY);
+          else tooltip.style.display = 'none';
+        }
+        scheduleRender();
+      } else if (hoveredPoint) {
+        if (!tooltipPinned) {
+          tooltip.style.left = (mouse.clientX + 12) + 'px';
+          tooltip.style.top = (mouse.clientY + 12) + 'px';
+        }
+      }
+    }
+
+    function showHoverTooltip(pt, clientX, clientY) {
+      const clusterName = metadata.clusters.find(c => c.id === pt.cluster)?.name || 'Unknown';
+      tooltip.innerHTML = `<strong>${pt.title}</strong><br><span style="color:#888;">Cluster: ${clusterName}</span>
     <a href="https://news.ycombinator.com/item?id=${pt.id}" target="_blank">View on HN ↗</a>
     <div style="margin-top:8px;font-size:10px;color:#666;">Click to pin tooltip</div>`;
-  tooltip.style.left = (clientX + 12) + 'px';
-  tooltip.style.top = (clientY + 12) + 'px';
-  tooltip.style.display = 'block';
-}
+      tooltip.style.left = (clientX + 12) + 'px';
+      tooltip.style.top = (clientY + 12) + 'px';
+      tooltip.style.display = 'block';
+    }
 
-function showPinnedTooltip(pt) {
-  const clusterName = metadata.clusters.find(c=>c.id===pt.cluster)?.name || 'Unknown';
-  tooltip.innerHTML = `<strong>${pt.title}</strong><br><span style="color:#888;">Cluster: ${clusterName}</span>
+    function showPinnedTooltip(pt) {
+      const clusterName = metadata.clusters.find(c => c.id === pt.cluster)?.name || 'Unknown';
+      tooltip.innerHTML = `<strong>${pt.title}</strong><br><span style="color:#888;">Cluster: ${clusterName}</span>
     <a href="https://news.ycombinator.com/item?id=${pt.id}" target="_blank">View on HN ↗</a>
     <div style="margin-top:8px;font-size:10px;color:#666;">Click again to unpin</div>`;
-  const s = worldToScreen(pt.x, pt.y);
-  tooltip.style.left = Math.min(window.innerWidth - 440, s.x + 12) + 'px';
-  tooltip.style.top = Math.min(window.innerHeight - 160, s.y + 12) + 'px';
-  tooltip.style.display = 'block';
-}
+      const s = worldToScreen(pt.x, pt.y);
+      tooltip.style.left = Math.min(window.innerWidth, s.x) + 'px';
+      tooltip.style.top = Math.min(window.innerHeight, s.y) + 'px';
+      tooltip.style.display = 'block';
+    }
 
-function updateDebugInfo() {
-  debugEl.textContent = `Loaded: ${loadedChunks.size}/${metadata ? metadata.chunks.length : 0} chunks (${allPoints.length.toLocaleString()} pts). Visible: ${visiblePoints.length.toLocaleString()}`;
-}
+    function updateDebugInfo() {
+      debugEl.textContent = `Loaded: ${loadedChunks.size}/${metadata ? metadata.chunks.length : 0} chunks (${allPoints.length.toLocaleString()} pts). Visible: ${visiblePoints.length.toLocaleString()}`;
+    }
 
-function fitToView() {
-  if (!metadata) return;
-  const b = metadata.bounds;
-  const rx = b.x_max - b.x_min, ry = b.y_max - b.y_min;
-  const padding = 1.15;
-  const zoomX = (canvas.width / (rx * padding));
-  const zoomY = (canvas.height / (ry * padding));
-  camera.zoom = Math.min(zoomX, zoomY);
-  camera.x = (b.x_min + b.x_max) / 2;
-  camera.y = (b.y_min + b.y_max) / 2;
-  raster = null; 
-  visiblePoints = [];
-  scheduleRasterRender(30);
-}
+    function fitToView() {
+      if (!metadata) return;
+      const b = metadata.bounds;
+      const rx = b.x_max - b.x_min, ry = b.y_max - b.y_min;
+      const padding = 1.15;
+      const zoomX = (canvas.width / (rx * padding));
+      const zoomY = (canvas.height / (ry * padding));
+      camera.zoom = Math.min(zoomX, zoomY);
+      camera.x = (b.x_min + b.x_max) / 2;
+      camera.y = (b.y_min + b.y_max) / 2;
+      raster = null;
+      visiblePoints = [];
+      scheduleRasterRender(30);
+    }
 
-function resetView(){ 
-  fitToView(); 
-  closeSidebarOnMobile();
-}
+    function resetView() {
+      fitToView();
+      closeSidebarOnMobile();
+    }
 
-loadMetadata();
-</script>
+    loadMetadata();
+  </script>
 </body>
 </html>
