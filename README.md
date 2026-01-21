@@ -1,5 +1,5 @@
-# Visualizing and analyzing what HackerNews loved in 2025
+# Clustering 142K+ HackerNews posts from 2025 and other findings
 
-Dataset is available on HuggingFace. Most of this was vibecoded using Claude and ChatGPT.
+Dataset: https://huggingface.co/datasets/youngermax/hackernews-2025
 
-Interactive cluster viewer: [URL coming soon]
+Interactive cluster viewer: https://hackernews-clustered-2025.labs.lincolnmaxwell.com/
