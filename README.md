@@ -1,4 +1,4 @@
-# Visualizing and analyzing what HackerNews loved in 2025
+# Clustering 142K+ HackerNews posts from 2025 and other findings
 
 Dataset: https://huggingface.co/datasets/youngermax/hackernews-2025
 
